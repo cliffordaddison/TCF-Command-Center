@@ -1,0 +1,5 @@
+{
+  "name": "TCF Canada Command Center",
+  "description": "A Kanban-style progressive web app for TCF Canada B2+ exam preparation, featuring the 4-3-2-1 rhythm and progress tracking.",
+  "requestFramePermissions": []
+}
