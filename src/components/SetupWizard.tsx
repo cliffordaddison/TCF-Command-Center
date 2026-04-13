@@ -1,22 +1,20 @@
 import React, { useState } from 'react';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { doc, setDoc } from 'firebase/firestore';
 import { UserProfile } from '../types';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { addMonths, format } from 'date-fns';
+import { storage } from '../lib/storage';
 
 interface SetupWizardProps {
-  userId: string;
-  email: string;
-  onComplete: () => void;
+  onComplete: (profile: UserProfile) => void;
 }
 
-export function SetupWizard({ userId, email, onComplete }: SetupWizardProps) {
+export function SetupWizard({ onComplete }: SetupWizardProps) {
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
+    email: '',
     startDate: format(new Date(), 'yyyy-MM-dd'),
     targetExamDate: format(addMonths(new Date(), 6), 'yyyy-MM-dd'),
     notificationHour: 8
@@ -34,8 +32,8 @@ export function SetupWizard({ userId, email, onComplete }: SetupWizardProps) {
 
   const handleSubmit = async () => {
     const profile: UserProfile = {
-      uid: userId,
-      email: email,
+      uid: 'local-user',
+      email: formData.email || 'local@user.com',
       settings: {
         notificationHour: formData.notificationHour,
         includeSundays: false
@@ -44,12 +42,8 @@ export function SetupWizard({ userId, email, onComplete }: SetupWizardProps) {
       targetExamDate: formData.targetExamDate
     };
 
-    try {
-      await setDoc(doc(db, 'users', userId), profile);
-      onComplete();
-    } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, `users/${userId}`);
-    }
+    storage.saveProfile(profile);
+    onComplete(profile);
   };
 
   return (
@@ -65,6 +59,17 @@ export function SetupWizard({ userId, email, onComplete }: SetupWizardProps) {
         <CardContent className="space-y-6">
           {step === 1 ? (
             <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Your Email (for local profile)</Label>
+                <Input 
+                  id="email" 
+                  type="email" 
+                  placeholder="Clifford.Siisi.Addison@gmail.com"
+                  value={formData.email} 
+                  onChange={e => setFormData({...formData, email: e.target.value})}
+                  className="bg-zinc-950 border-zinc-800"
+                />
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="startDate">Study Start Date</Label>
                 <Input 

@@ -1,19 +1,15 @@
 import React from 'react';
-import { User } from 'firebase/auth';
 import { UserProfile } from '../types';
-import { auth } from '../lib/firebase';
-import { LogOut, Settings, User as UserIcon } from 'lucide-react';
-import { Button } from './ui/button';
+import { Settings, User as UserIcon } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './ui/dropdown-menu';
 
 interface LayoutProps {
-  user: User;
   profile: UserProfile;
   children: React.ReactNode;
   onNavigate: (view: 'dashboard' | 'profile' | 'settings') => void;
 }
 
-export function Layout({ user, profile, children, onNavigate }: LayoutProps) {
+export function Layout({ profile, children, onNavigate }: LayoutProps) {
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans selection:bg-blue-500/30 flex flex-col">
       <header className="sticky top-0 z-50 w-full border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-md">
@@ -34,15 +30,14 @@ export function Layout({ user, profile, children, onNavigate }: LayoutProps) {
             
             <DropdownMenu>
               <DropdownMenuTrigger className="rounded-full border border-zinc-800 p-0 overflow-hidden size-8 hover:border-zinc-600 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
-                {user.photoURL ? (
-                  <img src={user.photoURL} alt={user.displayName || ''} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-zinc-900">
-                    <UserIcon className="w-4 h-4" />
-                  </div>
-                )}
+                <div className="w-full h-full flex items-center justify-center bg-zinc-900">
+                  <UserIcon className="w-4 h-4" />
+                </div>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56 bg-zinc-900 border-zinc-800 text-zinc-100 shadow-2xl">
+                <div className="px-2 py-1.5 text-xs text-zinc-500 font-mono uppercase border-b border-zinc-800 mb-1">
+                  Local Profile: {profile.email}
+                </div>
                 <DropdownMenuItem 
                   className="flex items-center gap-2 focus:bg-zinc-800 focus:text-white cursor-pointer"
                   onClick={() => onNavigate('profile')}
@@ -54,12 +49,6 @@ export function Layout({ user, profile, children, onNavigate }: LayoutProps) {
                   onClick={() => onNavigate('settings')}
                 >
                   <Settings className="w-4 h-4" /> Settings
-                </DropdownMenuItem>
-                <DropdownMenuItem 
-                  className="flex items-center gap-2 text-red-400 focus:bg-red-500/10 focus:text-red-400 cursor-pointer"
-                  onClick={() => auth.signOut()}
-                >
-                  <LogOut className="w-4 h-4" /> Logout
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

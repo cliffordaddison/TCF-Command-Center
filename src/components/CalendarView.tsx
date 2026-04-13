@@ -3,12 +3,10 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { StudyPlanDay, UserProgress, TaskTemplate, TaskType } from '../types';
-import { format, addDays, startOfDay } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { Button } from './ui/button';
 import { CheckCircle2, Circle, ExternalLink, Info, Trophy, AlertTriangle } from 'lucide-react';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { doc, setDoc, updateDoc } from 'firebase/firestore';
 import { toast } from 'sonner';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { Input } from './ui/input';
@@ -17,10 +15,10 @@ interface CalendarViewProps {
   startDate: string;
   plan: StudyPlanDay[];
   progress: UserProgress[];
-  userId: string;
+  onProgressUpdate: (newProgress: UserProgress[]) => void;
 }
 
-export function CalendarView({ startDate, plan, progress, userId }: CalendarViewProps) {
+export function CalendarView({ startDate, plan, progress, onProgressUpdate }: CalendarViewProps) {
   const [selectedDay, setSelectedDay] = useState<StudyPlanDay | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [scoreInput, setScoreInput] = useState<{ taskId: string, score: string }>({ taskId: '', score: '' });
@@ -56,7 +54,8 @@ export function CalendarView({ startDate, plan, progress, userId }: CalendarView
   const toggleTask = async (taskId: string, score?: number, weakTags?: string[]) => {
     if (!selectedDay) return;
 
-    const dayProgress = progress.find(p => p.dayNumber === selectedDay.day);
+    const dayProgressIndex = progress.findIndex(p => p.dayNumber === selectedDay.day);
+    const dayProgress = dayProgressIndex > -1 ? progress[dayProgressIndex] : null;
     const existingTasks = dayProgress?.tasks || [];
     const taskIndex = existingTasks.findIndex(t => t.id === taskId);
 
@@ -76,42 +75,34 @@ export function CalendarView({ startDate, plan, progress, userId }: CalendarView
       newTasks.push(newTask);
     }
 
-    const progressId = `day_${selectedDay.day}`;
-    const progressRef = doc(db, 'users', userId, 'progress', progressId);
-
-    try {
-      if (dayProgress) {
-        await updateDoc(progressRef, { 
-          tasks: newTasks,
-          dateCompleted: new Date().toISOString()
-        });
-      } else {
-        await setDoc(progressRef, {
-          userId,
-          dayNumber: selectedDay.day,
-          tasks: newTasks,
-          dateCompleted: new Date().toISOString()
-        });
-      }
-
-      // Logic for TCF Review Scheduling
-      if (score !== undefined && score < 35) {
-        const task = selectedDay.tasks.find(t => t.id === taskId);
-        if (task?.testId) {
-          const reviewDayNum = selectedDay.day + 3;
-          const reviewProgressId = `day_${reviewDayNum}`;
-          const reviewRef = doc(db, 'users', userId, 'progress', reviewProgressId);
-          
-          // We add a "dynamic task" to the progress of 3 days later
-          // Note: The UI needs to render these dynamic tasks
-          toast.info(`Score < 35. Review scheduled for Day ${reviewDayNum}`);
-        }
-      }
-
-      toast.success("Progress updated");
-    } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, `users/${userId}/progress/${progressId}`);
+    let newProgress = [...progress];
+    if (dayProgressIndex > -1) {
+      newProgress[dayProgressIndex] = {
+        ...progress[dayProgressIndex],
+        tasks: newTasks,
+        dateCompleted: new Date().toISOString()
+      };
+    } else {
+      newProgress.push({
+        userId: 'local-user',
+        dayNumber: selectedDay.day,
+        tasks: newTasks,
+        dateCompleted: new Date().toISOString()
+      });
     }
+
+    onProgressUpdate(newProgress);
+
+    // Logic for TCF Review Scheduling
+    if (score !== undefined && score < 35) {
+      const task = selectedDay.tasks.find(t => t.id === taskId);
+      if (task?.testId) {
+        const reviewDayNum = selectedDay.day + 3;
+        toast.info(`Score < 35. Review scheduled for Day ${reviewDayNum}`);
+      }
+    }
+
+    toast.success("Progress updated");
   };
 
   const getTooltipContent = (task: TaskTemplate) => {

@@ -12,31 +12,6 @@ async function startServer() {
 
   app.use(express.json());
 
-  // Mock Email Notification Route
-  app.post("/api/notify", (req, res) => {
-    const { email, type, taskTitle, objective } = req.body;
-    const recipient = email || "Clifford.Siisi.Addison@gmail.com";
-    
-    console.log("--------------------------------------------------");
-    console.log(`[EMAIL NOTIFICATION SYSTEM]`);
-    console.log(`RECIPIENT: ${recipient}`);
-    console.log(`TYPE: ${type.toUpperCase()}`);
-    console.log(`TASK: ${taskTitle}`);
-    if (objective) console.log(`OBJECTIVE: ${objective}`);
-    console.log(`TIMESTAMP: ${new Date().toISOString()}`);
-    console.log("--------------------------------------------------");
-    
-    // In a real app, you would use a service like Resend or SendGrid here:
-    // const resend = new Resend(process.env.RESEND_API_KEY);
-    // await resend.emails.send({ ... });
-
-    res.json({ 
-      success: true, 
-      message: `Notification logged for ${recipient}`,
-      details: "This is a mock notification. To enable real emails, configure RESEND_API_KEY in the server settings."
-    });
-  });
-
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

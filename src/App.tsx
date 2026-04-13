@@ -1,7 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { auth, db, handleFirestoreError, OperationType } from './lib/firebase';
-import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, User } from 'firebase/auth';
-import { doc, onSnapshot, setDoc, collection, query, getDocs, writeBatch } from 'firebase/firestore';
 import { UserProfile, StudyPlanDay, UserProgress } from './types';
 import { Layout } from './components/Layout';
 import { SetupWizard } from './components/SetupWizard';
@@ -11,11 +8,10 @@ import { SettingsView } from './components/SettingsView';
 import { Toaster } from './components/ui/sonner';
 import { TooltipProvider } from './components/ui/tooltip';
 import { generateMasterPlan } from './lib/studyPlanData';
-import { Button } from './components/ui/button';
-import { Loader2, Database } from 'lucide-react';
+import { storage } from './lib/storage';
+import { Loader2 } from 'lucide-react';
 
 export default function App() {
-  const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [plan, setPlan] = useState<StudyPlanDay[]>([]);
   const [progress, setProgress] = useState<UserProgress[]>([]);
@@ -23,57 +19,44 @@ export default function App() {
   const [view, setView] = useState<'dashboard' | 'profile' | 'settings'>('dashboard');
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      if (!u) {
-        setLoading(false);
-        setProfile(null);
-        setPlan([]);
-        setProgress([]);
-      }
-    });
-    return unsubscribe;
+    // Load data from LocalStorage
+    const p = storage.getProfile();
+    const pr = storage.getProgress();
+    
+    setProfile(p);
+    setProgress(pr);
+    
+    if (p) {
+      const masterPlan = generateMasterPlan(p.startDate, p.settings?.includeSundays);
+      setPlan(masterPlan);
+    }
+    
+    setLoading(false);
   }, []);
 
+  // Browser Notification Logic
   useEffect(() => {
-    if (!user) return;
+    if (!profile || !profile.settings?.notificationHour) return;
 
-    // Fetch Profile
-    const profileRef = doc(db, 'users', user.uid);
-    const unsubProfile = onSnapshot(profileRef, (docSnap) => {
-      if (docSnap.exists()) {
-        setProfile(docSnap.data() as UserProfile);
-      } else {
-        setProfile(null);
+    const checkNotifications = () => {
+      const now = new Date();
+      if (now.getHours() === profile.settings?.notificationHour && now.getMinutes() === 0) {
+        if (Notification.permission === 'granted') {
+          new Notification('TCF Study Reminder', {
+            body: "It's time for your daily TCF study session! Open your dashboard to see today's tasks.",
+            icon: '/favicon.ico'
+          });
+        }
       }
-    }, (err) => handleFirestoreError(err, OperationType.GET, `users/${user.uid}`));
-
-    // Fetch Master Plan
-    // We no longer fetch from Firestore, we generate it locally based on profile.startDate
-    if (profile) {
-      const p = generateMasterPlan(profile.startDate, profile.settings?.includeSundays);
-      setPlan(p);
-      setLoading(false);
-    }
-
-    // Fetch User Progress
-    const progressRef = collection(db, 'users', user.uid, 'progress');
-    const unsubProgress = onSnapshot(progressRef, (snap) => {
-      const pr = snap.docs.map(d => d.data() as UserProgress);
-      setProgress(pr);
-    }, (err) => handleFirestoreError(err, OperationType.LIST, `users/${user.uid}/progress`));
-
-    return () => {
-      unsubProfile();
-      unsubProgress();
     };
-  }, [user, profile?.startDate]);
 
-  const handleLogin = async () => {
-    try {
-      await signInWithPopup(auth, new GoogleAuthProvider());
-    } catch (err) {
-      console.error("Login failed", err);
+    const interval = setInterval(checkNotifications, 60000); // Check every minute
+    return () => clearInterval(interval);
+  }, [profile]);
+
+  const handleRequestPermission = () => {
+    if ('Notification' in window) {
+      Notification.requestPermission();
     }
   };
 
@@ -88,27 +71,13 @@ export default function App() {
     );
   }
 
-  if (!user) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-zinc-950 text-zinc-100 p-4">
-        <div className="max-w-md w-full space-y-8 text-center">
-          <div className="space-y-2">
-            <h1 className="text-4xl font-bold tracking-tighter sm:text-5xl font-sans text-zinc-100">TCF Canada</h1>
-            <p className="text-zinc-400 font-mono text-sm uppercase tracking-widest">6-Month B2+ Study Planner</p>
-          </div>
-          <button
-            onClick={handleLogin}
-            className="w-full py-3 px-4 bg-zinc-100 text-zinc-950 font-bold rounded-md hover:bg-zinc-200 transition-colors"
-          >
-            LOGIN WITH GOOGLE
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   if (!profile) {
-    return <SetupWizard userId={user.uid} email={user.email || ''} onComplete={() => {}} />;
+    return <SetupWizard onComplete={(newProfile) => {
+      setProfile(newProfile);
+      const masterPlan = generateMasterPlan(newProfile.startDate, newProfile.settings?.includeSundays);
+      setPlan(masterPlan);
+      handleRequestPermission();
+    }} />;
   }
 
   const effectivePlan = plan.map(day => {
@@ -138,19 +107,37 @@ export default function App() {
 
   return (
     <TooltipProvider>
-      <Layout user={user} profile={profile as any} onNavigate={setView}>
+      <Layout profile={profile} onNavigate={setView}>
         {view === 'dashboard' && (
           <div className="space-y-6 animate-in fade-in duration-500">
             <CalendarView 
               startDate={profile.startDate} 
               plan={effectivePlan} 
               progress={progress} 
-              userId={user.uid} 
+              onProgressUpdate={(newProgress) => {
+                setProgress(newProgress);
+                storage.saveProgress(newProgress);
+              }}
             />
           </div>
         )}
         {view === 'profile' && <ProfileView profile={profile} onBack={() => setView('dashboard')} />}
-        {view === 'settings' && <SettingsView profile={profile} onBack={() => setView('dashboard')} />}
+        {view === 'settings' && (
+          <SettingsView 
+            profile={profile} 
+            onBack={() => setView('dashboard')} 
+            onUpdate={(updated) => {
+              setProfile(updated);
+              storage.saveProfile(updated);
+              const masterPlan = generateMasterPlan(updated.startDate, updated.settings?.includeSundays);
+              setPlan(masterPlan);
+            }}
+            onReset={() => {
+              storage.clearAll();
+              window.location.reload();
+            }}
+          />
+        )}
         <Toaster />
       </Layout>
     </TooltipProvider>

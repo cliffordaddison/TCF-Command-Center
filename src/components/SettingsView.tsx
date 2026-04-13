@@ -5,17 +5,17 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Switch } from './ui/switch';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
 import { toast } from 'sonner';
 import { addMonths, format } from 'date-fns';
 
 interface SettingsViewProps {
   profile: UserProfile;
   onBack: () => void;
+  onUpdate: (updated: UserProfile) => void;
+  onReset: () => void;
 }
 
-export function SettingsView({ profile, onBack }: SettingsViewProps) {
+export function SettingsView({ profile, onBack, onUpdate, onReset }: SettingsViewProps) {
   const [notifHour, setNotifHour] = useState(profile.settings?.notificationHour ?? 8);
   const [includeSundays, setIncludeSundays] = useState(profile.settings?.includeSundays ?? false);
   const [startDate, setStartDate] = useState(profile.startDate);
@@ -23,20 +23,20 @@ export function SettingsView({ profile, onBack }: SettingsViewProps) {
 
   const handleSave = async () => {
     setSaving(true);
-    try {
-      const targetExamDate = format(addMonths(new Date(startDate), 6), 'yyyy-MM-dd');
-      await updateDoc(doc(db, 'users', profile.uid), {
-        'settings.notificationHour': notifHour,
-        'settings.includeSundays': includeSundays,
-        'startDate': startDate,
-        'targetExamDate': targetExamDate
-      });
-      toast.success("Settings updated successfully");
-    } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `users/${profile.uid}`);
-    } finally {
-      setSaving(false);
-    }
+    const targetExamDate = format(addMonths(new Date(startDate), 6), 'yyyy-MM-dd');
+    const updated: UserProfile = {
+      ...profile,
+      startDate,
+      targetExamDate,
+      settings: {
+        ...profile.settings,
+        notificationHour: notifHour,
+        includeSundays
+      }
+    };
+    onUpdate(updated);
+    toast.success("Settings updated locally");
+    setSaving(false);
   };
 
   return (
@@ -113,7 +113,7 @@ export function SettingsView({ profile, onBack }: SettingsViewProps) {
           <CardDescription>Irreversible actions for your TCF Planner.</CardDescription>
         </CardHeader>
         <CardContent>
-          <Button variant="destructive" className="w-full">Reset All Progress Data</Button>
+          <Button variant="destructive" className="w-full" onClick={onReset}>Reset All Local Data</Button>
         </CardContent>
       </Card>
     </div>
