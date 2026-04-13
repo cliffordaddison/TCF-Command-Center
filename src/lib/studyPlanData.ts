@@ -1,10 +1,13 @@
 import { StudyPlanDay, TaskTemplate, TaskType } from '../types';
 import { addDays, getDay, startOfDay } from 'date-fns';
 
-export const generateMasterPlan = (startDateStr: string): StudyPlanDay[] => {
+export const generateMasterPlan = (startDateStr: string, includeSundays: boolean = false): StudyPlanDay[] => {
   const plan: StudyPlanDay[] = [];
   let testCounter = 1;
-  const startDate = startOfDay(new Date(startDateStr));
+  
+  // Parse date string manually to avoid timezone shifts (ensures local midnight)
+  const [year, month, dayPart] = startDateStr.split('T')[0].split('-').map(Number);
+  const startDate = new Date(year, month - 1, dayPart);
 
   for (let day = 1; day <= 180; day++) {
     const tasks: TaskTemplate[] = [];
@@ -45,8 +48,8 @@ export const generateMasterPlan = (startDateStr: string): StudyPlanDay[] => {
       storyNum = 1; // Review mode
     }
 
-    // Add Story Task (Mon-Sat)
-    if (dayOfWeek !== 0) { // 0 is Sunday in getDay()
+    // Add Story Task (Mon-Sat, or Mon-Sun if includeSundays is true)
+    if (includeSundays || dayOfWeek !== 0) { 
       const isReview = dayOfWeek === 3 || day >= 156; // Wed is 3
       tasks.push({
         id: `story-l${level}-${storyNum}-${day}`,
@@ -54,14 +57,22 @@ export const generateMasterPlan = (startDateStr: string): StudyPlanDay[] => {
         title: isReview ? `Review Story: Level ${level} - Story ${storyNum}` : `New Story: Level ${level} - Story ${storyNum}`,
         description: isReview 
           ? "Pronunciation focus: Record yourself summarizing story in French (2 mins). Upload to AmiGrade for AI feedback."
-          : "1. Listen Modern Speed (No text). 2. Listen Enunciated Speed (Write phonetic sounds). 3. Check Transcript ONLY for missed words. 4. Shadow reading x3.",
+          : "Listen Modern Speed (No text)|Listen Enunciated Speed (Write phonetic sounds)|Check Transcript ONLY for missed words|Shadow reading x3",
         resourceLink: "https://www.frenchtoday.com/"
       });
     }
 
     // --- TCF Logic ---
     if (dayOfWeek === 0) {
-      // Sunday: Rest Day - No TCF tasks
+      if (includeSundays) {
+        tasks.push({
+          id: `tcf-sunday-drill-${day}`,
+          type: "tcf_drill",
+          title: "Sunday Mastery Drill",
+          description: "Review any weak areas from the week. Focus on Vocabulary or Grammar drills. Explain why wrong options are wrong.",
+          resourceLink: "https://fuck-tcf.xyz/"
+        });
+      }
     } else if (day <= 120) {
       if (dayOfWeek === 1 || dayOfWeek === 4) { // Mon, Thu: New Test
         if (testCounter <= 40) {
@@ -131,7 +142,7 @@ export const generateMasterPlan = (startDateStr: string): StudyPlanDay[] => {
           description: "Do Test 40 WITHOUT looking at the clock. Aim for 39/39. Say correct answers out loud in full sentences.",
           resourceLink: "https://fuck-tcf.xyz/test-40"
         });
-      } else if (dayOfWeek !== 0) {
+      } else if (dayOfWeek !== 0 || includeSundays) {
         tasks.push({
           id: `tcf-mastery-${day}`,
           type: "tcf_review",

@@ -26,7 +26,9 @@ export function CalendarView({ startDate, plan, progress, userId }: CalendarView
   const [scoreInput, setScoreInput] = useState<{ taskId: string, score: string }>({ taskId: '', score: '' });
 
   const events = plan.map(day => {
-    const date = addDays(startOfDay(new Date(startDate)), day.dateOffset);
+    const [year, month, dayPart] = startDate.split('T')[0].split('-').map(Number);
+    const baseDate = new Date(year, month - 1, dayPart);
+    const date = addDays(baseDate, day.dateOffset);
     const dayProgress = progress.find(p => p.dayNumber === day.day);
     const completedCount = dayProgress?.tasks.filter(t => t.completed).length || 0;
     const totalCount = day.tasks.length;
@@ -135,7 +137,10 @@ export function CalendarView({ startDate, plan, progress, userId }: CalendarView
         <div className="space-y-1">
           <p className="font-bold text-zinc-400 uppercase text-[9px]">Steps:</p>
           <ul className="list-decimal list-inside text-zinc-400 space-y-0.5">
-            {description.split('.').slice(1).filter(s => s.trim()).map((step, i) => (
+            {(task.description.includes('|') 
+              ? task.description.split('|') 
+              : task.description.split('.').slice(1).filter(s => s.trim() && !/^\d+$/.test(s.trim()))
+            ).map((step, i) => (
               <li key={i}>{step.trim()}</li>
             ))}
           </ul>

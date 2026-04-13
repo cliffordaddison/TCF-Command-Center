@@ -37,10 +37,11 @@ export function SetupWizard({ userId, email, onComplete }: SetupWizardProps) {
       uid: userId,
       email: email,
       settings: {
-        notificationHour: formData.notificationHour
+        notificationHour: formData.notificationHour,
+        includeSundays: false
       },
-      startDate: new Date(formData.startDate).toISOString(),
-      targetExamDate: new Date(formData.targetExamDate).toISOString()
+      startDate: formData.startDate,
+      targetExamDate: formData.targetExamDate
     };
 
     try {

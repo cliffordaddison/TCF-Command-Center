@@ -3,6 +3,7 @@ export interface UserProfile {
   email: string;
   settings?: {
     notificationHour: number;
+    includeSundays: boolean;
   };
   startDate: string;
   targetExamDate: string;

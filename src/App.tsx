@@ -51,7 +51,7 @@ export default function App() {
     // Fetch Master Plan
     // We no longer fetch from Firestore, we generate it locally based on profile.startDate
     if (profile) {
-      const p = generateMasterPlan(profile.startDate);
+      const p = generateMasterPlan(profile.startDate, profile.settings?.includeSundays);
       setPlan(p);
       setLoading(false);
     }
